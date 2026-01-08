@@ -6,6 +6,7 @@ import {
   playNotificationSound,
   showBrowserNotification,
   requestNotificationPermission,
+  initAudioContext,
 } from "@/lib/notifications";
 
 export type TimerMode = "work" | "shortBreak" | "longBreak";
@@ -113,7 +114,13 @@ export function usePomodoro() {
     };
   }, [isActive, timeLeft, handleTimerComplete]);
 
-  const toggleTimer = () => setIsActive(!isActive);
+  const toggleTimer = () => {
+    // Initialize AudioContext on user interaction (required for autoplay policy)
+    if (!isActive) {
+      initAudioContext();
+    }
+    setIsActive(!isActive);
+  };
 
   const resetTimer = () => {
     setIsActive(false);

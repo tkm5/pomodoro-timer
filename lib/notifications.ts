@@ -7,6 +7,28 @@
 
 export type NotificationMode = "work" | "shortBreak" | "longBreak";
 
+// Singleton AudioContext instance
+let audioContext: AudioContext | null = null;
+
+/**
+ * Initializes the AudioContext on user interaction.
+ * Must be called from a user gesture (click, etc.) to comply with autoplay policy.
+ */
+export function initAudioContext(): void {
+  if (typeof window === "undefined") return;
+
+  if (!audioContext) {
+    audioContext = new (window.AudioContext ||
+      (window as typeof window & { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext)();
+  }
+
+  // Resume if suspended (required by some browsers)
+  if (audioContext.state === "suspended") {
+    audioContext.resume();
+  }
+}
+
 /**
  * Sends a notification to Discord via API route to avoid CORS issues.
  *
@@ -46,34 +68,47 @@ export async function sendDiscordNotification(
  */
 export function playNotificationSound(): void {
   try {
-    const audioContext = new (window.AudioContext ||
-      (window as typeof window & { webkitAudioContext: typeof AudioContext })
-        .webkitAudioContext)();
+    // Initialize AudioContext if not already done
+    if (!audioContext) {
+      initAudioContext();
+    }
+
+    if (!audioContext) {
+      console.warn("AudioContext not available");
+      return;
+    }
+
+    // Resume if suspended
+    if (audioContext.state === "suspended") {
+      audioContext.resume();
+    }
+
+    const ctx = audioContext;
 
     // Create a gentle chime sound
     const playTone = (frequency: number, startTime: number, duration: number) => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
 
       oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+      gainNode.connect(ctx.destination);
 
       oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+      oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
 
       // Gentle envelope
-      gainNode.gain.setValueAtTime(0, audioContext.currentTime + startTime);
+      gainNode.gain.setValueAtTime(0, ctx.currentTime + startTime);
       gainNode.gain.linearRampToValueAtTime(
         0.3,
-        audioContext.currentTime + startTime + 0.05
+        ctx.currentTime + startTime + 0.05
       );
       gainNode.gain.exponentialRampToValueAtTime(
         0.01,
-        audioContext.currentTime + startTime + duration
+        ctx.currentTime + startTime + duration
       );
 
-      oscillator.start(audioContext.currentTime + startTime);
-      oscillator.stop(audioContext.currentTime + startTime + duration);
+      oscillator.start(ctx.currentTime + startTime);
+      oscillator.stop(ctx.currentTime + startTime + duration);
     };
 
     // Play a gentle three-note chime (C5 - E5 - G5)
