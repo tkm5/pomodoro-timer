@@ -69,11 +69,15 @@ export function usePomodoro() {
   }, [mode, timeLeft, sessionsCompleted, settings]);
 
   const handleTimerComplete = useCallback(() => {
+    console.log("handleTimerComplete called, mode:", mode);
     setIsActive(false);
 
     // Play sound and show notifications
+    console.log("Calling playNotificationSound...");
     playNotificationSound();
+    console.log("Calling showBrowserNotification...");
     showBrowserNotification(mode, sessionsCompleted);
+    console.log("Calling sendDiscordNotification...");
     sendDiscordNotification(mode, sessionsCompleted);
 
     if (mode === "work") {
@@ -134,6 +138,7 @@ export function usePomodoro() {
   };
 
   const skipSession = () => {
+    console.log("skipSession called");
     // Initialize AudioContext on user interaction (required for autoplay policy)
     initAudioContext();
     setIsActive(false);
