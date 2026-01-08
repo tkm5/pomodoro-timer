@@ -134,6 +134,8 @@ export function usePomodoro() {
   };
 
   const skipSession = () => {
+    // Initialize AudioContext on user interaction (required for autoplay policy)
+    initAudioContext();
     setIsActive(false);
     handleTimerComplete();
   };

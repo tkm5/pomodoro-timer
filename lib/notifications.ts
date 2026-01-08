@@ -21,11 +21,14 @@ export function initAudioContext(): void {
     audioContext = new (window.AudioContext ||
       (window as typeof window & { webkitAudioContext: typeof AudioContext })
         .webkitAudioContext)();
+    console.log("AudioContext created:", audioContext.state);
   }
 
   // Resume if suspended (required by some browsers)
   if (audioContext.state === "suspended") {
-    audioContext.resume();
+    audioContext.resume().then(() => {
+      console.log("AudioContext resumed:", audioContext?.state);
+    });
   }
 }
 
@@ -51,13 +54,16 @@ export async function sendDiscordNotification(
   };
 
   try {
-    await fetch("/api/discord", {
+    console.log("Sending Discord notification...", payload);
+    const response = await fetch("/api/discord", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
     });
+    const result = await response.json();
+    console.log("Discord notification response:", response.status, result);
   } catch (error) {
     console.error("Failed to send Discord notification:", error);
   }
@@ -67,9 +73,11 @@ export async function sendDiscordNotification(
  * Plays a gentle notification sound using Web Audio API.
  */
 export function playNotificationSound(): void {
+  console.log("playNotificationSound called, audioContext:", audioContext?.state);
   try {
     // Initialize AudioContext if not already done
     if (!audioContext) {
+      console.log("AudioContext not initialized, initializing now...");
       initAudioContext();
     }
 
@@ -80,9 +88,11 @@ export function playNotificationSound(): void {
 
     // Resume if suspended
     if (audioContext.state === "suspended") {
+      console.log("AudioContext suspended, resuming...");
       audioContext.resume();
     }
 
+    console.log("Playing sound, AudioContext state:", audioContext.state);
     const ctx = audioContext;
 
     // Create a gentle chime sound
