@@ -5,13 +5,10 @@
  * browser notifications, and sound alerts.
  */
 
-const DISCORD_WEBHOOK_URL =
-  "https://discord.com/api/webhooks/1458808624108409027/KPd5kWqMibHlllNlGFO8T49hsl6D7_o8IcxcjvaITk8u7vn1Aff8ML3XqlkSTmwwlyEi";
-
 export type NotificationMode = "work" | "shortBreak" | "longBreak";
 
 /**
- * Sends a notification to Discord via webhook.
+ * Sends a notification to Discord via API route to avoid CORS issues.
  *
  * @param mode - The timer mode that was completed.
  * @param sessionsCompleted - The number of pomodoro sessions completed.
@@ -29,12 +26,10 @@ export async function sendDiscordNotification(
   const payload = {
     content: modeMessages[mode],
     username: "Pomodoro Timer",
-    avatar_url:
-      "https://cdn.discordapp.com/attachments/1234567890/pomodoro-icon.png",
   };
 
   try {
-    await fetch(DISCORD_WEBHOOK_URL, {
+    await fetch("/api/discord", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -73,7 +73,7 @@ export function TimerDisplay({
           {/* Time */}
           <h1 className="flex items-center text-[12rem] leading-none font-bold tracking-tighter tabular-nums select-none text-white drop-shadow-2xl">
             <span>{minutes.toString().padStart(2, "0")}</span>
-            <span className="mx-1 -translate-y-[0.05em]">:</span>
+            <span className="mx-4 -translate-y-[0.05em]">:</span>
             <span>{seconds.toString().padStart(2, "0")}</span>
           </h1>
 
