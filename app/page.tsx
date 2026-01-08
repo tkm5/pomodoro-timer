@@ -59,8 +59,11 @@ export default function Home() {
         />
 
         {/* Additional Status Text & Reset Logic */}
-        <div className="flex items-center space-x-4">
-          <p className="text-muted-foreground text-sm tracking-widest uppercase opacity-60">
+        <div className="flex items-center justify-center w-full">
+          {/* Spacer to balance the reset button */}
+          <div className="h-6 w-6" />
+
+          <p className="text-muted-foreground text-sm tracking-widest uppercase opacity-60 mx-2">
             POMODORO #{sessionsCompleted + 1}
           </p>
 

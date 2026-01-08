@@ -1,6 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  sendDiscordNotification,
+  playNotificationSound,
+  showBrowserNotification,
+  requestNotificationPermission,
+} from "@/lib/notifications";
 
 export type TimerMode = "work" | "shortBreak" | "longBreak";
 
@@ -28,7 +34,7 @@ export function usePomodoro() {
   // Ref to track if we've loaded from localStorage to avoid overwriting with defaults initially
   const isLoaded = useRef(false);
 
-  // Load state from localStorage on mount
+  // Load state from localStorage on mount and request notification permission
   useEffect(() => {
     const savedState = localStorage.getItem("pomodoro-state");
     if (savedState) {
@@ -44,6 +50,9 @@ export function usePomodoro() {
       }
     }
     isLoaded.current = true;
+
+    // Request notification permission
+    requestNotificationPermission();
   }, []);
 
   // Save state to localStorage whenever it changes
@@ -60,6 +69,11 @@ export function usePomodoro() {
 
   const handleTimerComplete = useCallback(() => {
     setIsActive(false);
+
+    // Play sound and show notifications
+    playNotificationSound();
+    showBrowserNotification(mode, sessionsCompleted);
+    sendDiscordNotification(mode, sessionsCompleted);
 
     if (mode === "work") {
       // Calculate NEXT session count to determine break type, but DO NOT increment state yet
