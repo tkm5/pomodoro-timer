@@ -43,9 +43,9 @@ export async function sendDiscordNotification(
   sessionsCompleted: number
 ): Promise<void> {
   const modeMessages: Record<NotificationMode, string> = {
-    work: `🍅 ポモドーロ #${sessionsCompleted + 1} が完了しました！休憩時間です．`,
-    shortBreak: `☕ 短い休憩が終わりました．集中タイムを始めましょう！`,
-    longBreak: `🎉 長い休憩が終わりました．新しいサイクルを始めましょう！`,
+    work: `🍅 Pomodoro #${sessionsCompleted + 1} completed! Time for a break.`,
+    shortBreak: `☕ Short break is over. Let's start focusing!`,
+    longBreak: `🎉 Long break is over. Let's start a new cycle!`,
   };
 
   const payload = {

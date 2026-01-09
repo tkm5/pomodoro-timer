@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { TimerSettings } from "@/hooks/use-pomodoro";
 
 interface SettingsModalProps {
@@ -43,6 +44,13 @@ export function SettingsModal({
         [key]: numValue,
       }));
     }
+  };
+
+  const handleToggle = (key: keyof TimerSettings, value: boolean) => {
+    setLocalSettings((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
   };
 
   return (
@@ -129,6 +137,23 @@ export function SettingsModal({
               }
               className="col-span-2 bg-input border-transparent focus:border-primary text-right font-mono text-lg"
             />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label
+              htmlFor="discordNotification"
+              className="text-right text-muted-foreground col-span-2"
+            >
+              Discord Notification
+            </Label>
+            <div className="col-span-2 flex justify-end">
+              <Switch
+                id="discordNotification"
+                checked={localSettings.discordNotificationEnabled}
+                onCheckedChange={(checked) =>
+                  handleToggle("discordNotificationEnabled", checked)
+                }
+              />
+            </div>
           </div>
         </div>
         <DialogFooter>

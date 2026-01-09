@@ -16,6 +16,7 @@ export interface TimerSettings {
   shortBreakDuration: number;
   longBreakDuration: number;
   longBreakInterval: number; // sessions before long break
+  discordNotificationEnabled: boolean; // Discord notification toggle
 }
 
 const DEFAULT_SETTINGS: TimerSettings = {
@@ -23,6 +24,7 @@ const DEFAULT_SETTINGS: TimerSettings = {
   shortBreakDuration: 5,
   longBreakDuration: 15,
   longBreakInterval: 4,
+  discordNotificationEnabled: false, // Default: disabled
 };
 
 export function usePomodoro() {
@@ -77,8 +79,13 @@ export function usePomodoro() {
     playNotificationSound();
     console.log("Calling showBrowserNotification...");
     showBrowserNotification(mode, sessionsCompleted);
-    console.log("Calling sendDiscordNotification...");
-    sendDiscordNotification(mode, sessionsCompleted);
+    // Send Discord notification only if enabled
+    if (settings.discordNotificationEnabled) {
+      console.log("Calling sendDiscordNotification...");
+      sendDiscordNotification(mode, sessionsCompleted);
+    } else {
+      console.log("Discord notification is disabled, skipping...");
+    }
 
     if (mode === "work") {
       // Calculate NEXT session count to determine break type, but DO NOT increment state yet
