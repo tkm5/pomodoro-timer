@@ -14,6 +14,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { TimerSettings } from "@/hooks/use-pomodoro";
 
+const LABEL_CLASS = "text-right text-muted-foreground col-span-2";
+const INPUT_CLASS =
+  "col-span-2 bg-input border-transparent focus:border-primary text-right font-mono text-lg";
+
 interface SettingsModalProps {
   settings: TimerSettings;
   onUpdateSettings: (newSettings: Partial<TimerSettings>) => void;
@@ -73,10 +77,7 @@ export function SettingsModal({
         </DialogHeader>
         <div className="grid gap-6 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label
-              htmlFor="workDuration"
-              className="text-right text-muted-foreground col-span-2"
-            >
+            <Label htmlFor="workDuration" className={LABEL_CLASS}>
               Work Duration (min)
             </Label>
             <Input
@@ -84,14 +85,11 @@ export function SettingsModal({
               type="number"
               value={localSettings.workDuration}
               onChange={(e) => handleChange("workDuration", e.target.value)}
-              className="col-span-2 bg-input border-transparent focus:border-primary text-right font-mono text-lg"
+              className={INPUT_CLASS}
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label
-              htmlFor="shortBreak"
-              className="text-right text-muted-foreground col-span-2"
-            >
+            <Label htmlFor="shortBreak" className={LABEL_CLASS}>
               Short Break (min)
             </Label>
             <Input
@@ -101,14 +99,11 @@ export function SettingsModal({
               onChange={(e) =>
                 handleChange("shortBreakDuration", e.target.value)
               }
-              className="col-span-2 bg-input border-transparent focus:border-primary text-right font-mono text-lg"
+              className={INPUT_CLASS}
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label
-              htmlFor="longBreak"
-              className="text-right text-muted-foreground col-span-2"
-            >
+            <Label htmlFor="longBreak" className={LABEL_CLASS}>
               Long Break (min)
             </Label>
             <Input
@@ -118,14 +113,11 @@ export function SettingsModal({
               onChange={(e) =>
                 handleChange("longBreakDuration", e.target.value)
               }
-              className="col-span-2 bg-input border-transparent focus:border-primary text-right font-mono text-lg"
+              className={INPUT_CLASS}
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label
-              htmlFor="interval"
-              className="text-right text-muted-foreground col-span-2"
-            >
+            <Label htmlFor="interval" className={LABEL_CLASS}>
               Long Break Interval
             </Label>
             <Input
@@ -135,14 +127,11 @@ export function SettingsModal({
               onChange={(e) =>
                 handleChange("longBreakInterval", e.target.value)
               }
-              className="col-span-2 bg-input border-transparent focus:border-primary text-right font-mono text-lg"
+              className={INPUT_CLASS}
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label
-              htmlFor="discordNotification"
-              className="text-right text-muted-foreground col-span-2"
-            >
+            <Label htmlFor="discordNotification" className={LABEL_CLASS}>
               Discord Notification
             </Label>
             <div className="col-span-2 flex justify-end">

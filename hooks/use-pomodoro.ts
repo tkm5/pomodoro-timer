@@ -71,20 +71,14 @@ export function usePomodoro() {
   }, [mode, timeLeft, sessionsCompleted, settings]);
 
   const handleTimerComplete = useCallback(() => {
-    console.log("handleTimerComplete called, mode:", mode);
     setIsActive(false);
 
     // Play sound and show notifications
-    console.log("Calling playNotificationSound...");
     playNotificationSound();
-    console.log("Calling showBrowserNotification...");
     showBrowserNotification(mode, sessionsCompleted);
-    // Send Discord notification only if enabled
+
     if (settings.discordNotificationEnabled) {
-      console.log("Calling sendDiscordNotification...");
       sendDiscordNotification(mode, sessionsCompleted);
-    } else {
-      console.log("Discord notification is disabled, skipping...");
     }
 
     if (mode === "work") {
@@ -135,17 +129,10 @@ export function usePomodoro() {
 
   const resetTimer = () => {
     setIsActive(false);
-    if (mode === "work") {
-      setTimeLeft(settings.workDuration * 60);
-    } else if (mode === "shortBreak") {
-      setTimeLeft(settings.shortBreakDuration * 60);
-    } else {
-      setTimeLeft(settings.longBreakDuration * 60);
-    }
+    setTimeLeft(getDurationForMode(mode));
   };
 
   const skipSession = () => {
-    console.log("skipSession called");
     // Initialize AudioContext on user interaction (required for autoplay policy)
     initAudioContext();
     setIsActive(false);
@@ -157,16 +144,18 @@ export function usePomodoro() {
   };
 
   const updateSettings = (newSettings: Partial<TimerSettings>) => {
-    setSettings((prev) => {
-      const updated = { ...prev, ...newSettings };
-      return updated;
-    });
+    setSettings((prev) => ({ ...prev, ...newSettings }));
   };
 
-  const getTotalDuration = () => {
-    if (mode === "work") return settings.workDuration * 60;
-    if (mode === "shortBreak") return settings.shortBreakDuration * 60;
-    return settings.longBreakDuration * 60;
+  const getDurationForMode = (targetMode: TimerMode): number => {
+    switch (targetMode) {
+      case "work":
+        return settings.workDuration * 60;
+      case "shortBreak":
+        return settings.shortBreakDuration * 60;
+      case "longBreak":
+        return settings.longBreakDuration * 60;
+    }
   };
 
   return {
@@ -175,13 +164,13 @@ export function usePomodoro() {
     isActive,
     sessionsCompleted,
     settings,
-    totalDuration: getTotalDuration(),
+    totalDuration: getDurationForMode(mode),
     toggleTimer,
     resetTimer,
     skipSession,
     resetSessionCount,
     updateSettings,
-    setMode, // exposed for manual overrides if needed
-    setTimeLeft, // exposed for manual overrides if needed
+    setMode,
+    setTimeLeft,
   };
 }
