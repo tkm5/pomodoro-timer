@@ -302,6 +302,24 @@ function pausedAt(state: TimerState, seconds: number): TimerState {
 }
 
 /**
+ * Moves on to the next session, paused at its full length.
+ *
+ * Args:
+ *   state: State whose current session has ended.
+ *
+ * Returns:
+ *   A paused state for the following session.
+ */
+function advanceSession(state: TimerState): TimerState {
+  const next = getNextSession(state.mode, state.sessionsCompleted, state.settings);
+  return {
+    ...pausedAt(state, getDurationSeconds(next.mode, state.settings)),
+    mode: next.mode,
+    sessionsCompleted: next.sessionsCompleted,
+  };
+}
+
+/**
  * Reducer for every timer transition.
  *
  * Args:
@@ -331,7 +349,14 @@ export function timerReducer(state: TimerState, action: TimerAction): TimerState
     }
     case "pause": {
       if (state.endTime === null) return state;
-      const remainingMs = Math.max(0, state.endTime - action.now);
+      // Pausing after the end would leave a 00:00 session that cannot be
+      // started again, so finish the session instead.
+      if (action.now >= state.endTime) return advanceSession(state);
+      // Settings may have shortened the session while it was running.
+      const remainingMs = Math.min(
+        state.endTime - action.now,
+        getDurationSeconds(state.mode, state.settings) * 1000
+      );
       return {
         ...state,
         endTime: null,
@@ -347,16 +372,7 @@ export function timerReducer(state: TimerState, action: TimerAction): TimerState
     case "complete": {
       // Ignore stale completions (e.g. a second timer firing for the same run).
       if (state.endTime !== action.endTime) return state;
-      const next = getNextSession(
-        state.mode,
-        state.sessionsCompleted,
-        state.settings
-      );
-      return {
-        ...pausedAt(state, getDurationSeconds(next.mode, state.settings)),
-        mode: next.mode,
-        sessionsCompleted: next.sessionsCompleted,
-      };
+      return advanceSession(state);
     }
     case "reset":
       return pausedAt(state, getDurationSeconds(state.mode, state.settings));

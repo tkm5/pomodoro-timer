@@ -75,6 +75,31 @@ describe("timestamp-driven countdown", () => {
     expect(resumed.endTime).toBe(T0 + 60_000 + 25 * 60 * 1000 - 1_300);
   });
 
+  it("completes the session instead of pausing at 00:00", () => {
+    const started = run({ type: "start", now: T0 });
+    for (const now of [started.endTime!, started.endTime! + 5_000]) {
+      const state = timerReducer(started, { type: "pause", now });
+      expect(state.mode).toBe("shortBreak");
+      expect(state.endTime).toBeNull();
+      expect(state.remainingMs).toBe(5 * 60 * 1000);
+      expect(state.timeLeft).toBe(5 * 60);
+      // The next session can be started right away.
+      const resumed = timerReducer(state, { type: "start", now: now + 1 });
+      expect(resumed.endTime).toBe(now + 1 + 5 * 60 * 1000);
+    }
+  });
+
+  it("pauses normally just before the end", () => {
+    const started = run({ type: "start", now: T0 });
+    const paused = timerReducer(started, {
+      type: "pause",
+      now: started.endTime! - 1,
+    });
+    expect(paused.mode).toBe("work");
+    expect(paused.remainingMs).toBe(1);
+    expect(paused.timeLeft).toBe(1);
+  });
+
   it("ignores start while running and pause while paused", () => {
     const started = run({ type: "start", now: T0 });
     expect(timerReducer(started, { type: "start", now: T0 + 5_000 })).toBe(started);
@@ -156,7 +181,7 @@ describe("settings", () => {
     expect(state.timeLeft).toBe(50 * 60);
   });
 
-  it("keeps a running session untouched", () => {
+  it("keeps a running session's end time when the duration grows", () => {
     const started = run({ type: "start", now: T0 });
     const updated = timerReducer(started, {
       type: "updateSettings",
@@ -164,6 +189,22 @@ describe("settings", () => {
     });
     expect(updated.endTime).toBe(started.endTime);
     expect(updated.settings.workDuration).toBe(50);
+    // Pausing does not stretch the session to the new length.
+    const paused = timerReducer(updated, { type: "pause", now: T0 + 60_000 });
+    expect(paused.remainingMs).toBe(24 * 60 * 1000);
+  });
+
+  it("caps a running session to the new duration when it is paused", () => {
+    const updated = run(
+      { type: "start", now: T0 },
+      { type: "updateSettings", settings: { workDuration: 10 } }
+    );
+    // The run itself is left alone until the user pauses it.
+    expect(updated.endTime).toBe(T0 + 25 * 60 * 1000);
+    const paused = timerReducer(updated, { type: "pause", now: T0 + 60_000 });
+    expect(paused.endTime).toBeNull();
+    expect(paused.remainingMs).toBe(10 * 60 * 1000);
+    expect(paused.timeLeft).toBe(10 * 60);
   });
 
   it("caps a paused session that is longer than the new duration", () => {

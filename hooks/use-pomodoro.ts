@@ -166,9 +166,17 @@ export function usePomodoro() {
     };
   }, []);
 
-  const toggleTimer = () => {
-    if (isActive) {
-      dispatch({ type: "pause", now: Date.now() });
+  // Stable across ticks (reads stateRef), so key listeners are not re-added.
+  const toggleTimer = useCallback(() => {
+    const current = stateRef.current;
+    if (current.endTime !== null) {
+      const now = Date.now();
+      if (now >= current.endTime) {
+        // Time is already up: complete (with notifications) instead of pausing.
+        syncWithClock();
+        return;
+      }
+      dispatch({ type: "pause", now });
       return;
     }
     // Initialize AudioContext on user interaction (required for autoplay policy)
@@ -176,7 +184,7 @@ export function usePomodoro() {
     // Ask for notification permission from a user gesture, as browsers require.
     requestNotificationPermission();
     dispatch({ type: "start", now: Date.now() });
-  };
+  }, [syncWithClock]);
 
   const resetTimer = () => {
     dispatch({ type: "reset" });
