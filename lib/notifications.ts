@@ -122,8 +122,7 @@ export function playNotificationSound(): void {
  * Requests permission for browser notifications.
  */
 export async function requestNotificationPermission(): Promise<boolean> {
-  if (!("Notification" in window)) {
-    console.warn("This browser does not support notifications.");
+  if (typeof window === "undefined" || !("Notification" in window)) {
     return false;
   }
 
@@ -132,8 +131,14 @@ export async function requestNotificationPermission(): Promise<boolean> {
   }
 
   if (Notification.permission !== "denied") {
-    const permission = await Notification.requestPermission();
-    return permission === "granted";
+    try {
+      // Rejects or is ignored in contexts such as cross-origin iframes.
+      const permission = await Notification.requestPermission();
+      return permission === "granted";
+    } catch (error) {
+      console.warn("Notification permission request failed:", error);
+      return false;
+    }
   }
 
   return false;
@@ -168,7 +173,7 @@ export function showBrowserNotification(
   try {
     new Notification(titles[mode], {
       body: bodies[mode],
-      icon: "/favicon.ico",
+      icon: "/icon.png",
       tag: "pomodoro-timer",
     });
   } catch (error) {

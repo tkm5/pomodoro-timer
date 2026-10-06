@@ -1,4 +1,5 @@
 import { TimerMode } from "@/hooks/use-pomodoro";
+import { formatTime } from "@/lib/timer";
 import { cn } from "@/lib/utils";
 
 interface TimerDisplayProps {
@@ -18,8 +19,9 @@ export function TimerDisplay({
   maxSessions,
   className,
 }: TimerDisplayProps) {
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
+  const { minutes, seconds } = formatTime(timeLeft);
+  // Three-digit minutes need a smaller font to stay inside the ring.
+  const digitScale = minutes.length > 2 ? 0.22 : 0.274;
 
   const modeLabels: Record<TimerMode, string> = {
     work: "FOCUS",
@@ -32,7 +34,8 @@ export function TimerDisplay({
   const circumference = 2 * Math.PI * radius;
 
   const elapsed = totalDuration - timeLeft;
-  const progress = elapsed / totalDuration;
+  const progress =
+    totalDuration > 0 ? Math.min(1, Math.max(0, elapsed / totalDuration)) : 0;
   const dashOffset = circumference * (1 - progress);
 
   return (
@@ -43,47 +46,56 @@ export function TimerDisplay({
       )}
     >
       <div className="relative flex items-center justify-center">
-        {/* SVG Circle */}
-        <svg className="w-[700px] h-[700px] transform -rotate-90">
+        {/* SVG Circle: drawn in a 700-unit box and scaled to --ring */}
+        <svg
+          viewBox="0 0 700 700"
+          aria-hidden="true"
+          className="size-[var(--ring)] transform -rotate-90"
+        >
           <circle
             cx="350"
             cy="350"
             r={radius}
             stroke="currentColor"
-            strokeWidth="4"
             fill="transparent"
-            className="text-white/5"
+            className="pomodoro-ring-track text-white/5"
           />
           <circle
             cx="350"
             cy="350"
             r={radius}
             stroke="currentColor"
-            strokeWidth="8"
             fill="transparent"
             strokeDasharray={circumference}
             strokeDashoffset={dashOffset}
             strokeLinecap="round"
-            className="text-primary transition-all duration-1000 ease-linear"
+            className="pomodoro-ring-progress text-primary transition-all duration-1000 ease-linear"
           />
         </svg>
 
         {/* Inner Content: Restored absolute inset-0 for full size container (Glow works here) */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center space-y-8">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-[calc(var(--ring)*0.046)]">
           {/* Time */}
-          <h1 className="flex items-center text-[12rem] leading-none font-bold tracking-tighter tabular-nums select-none text-white drop-shadow-2xl">
-            <span>{minutes.toString().padStart(2, "0")}</span>
-            <span className="mx-4 -translate-y-[0.05em]">:</span>
-            <span>{seconds.toString().padStart(2, "0")}</span>
+          <h1
+            style={{ fontSize: `calc(var(--ring) * ${digitScale})` }}
+            className="flex items-center leading-none font-bold tracking-tighter tabular-nums select-none text-white drop-shadow-2xl"
+          >
+            <span>{minutes}</span>
+            <span className="mx-[0.083em] -translate-y-[0.05em]">:</span>
+            <span>{seconds}</span>
           </h1>
 
           {/* Session Dots */}
-          <div className="flex space-x-3">
+          <div
+            role="img"
+            aria-label={`${sessionProgress} of ${maxSessions} sessions in this cycle`}
+            className="flex gap-[max(3px,calc(var(--ring)*0.017))]"
+          >
             {Array.from({ length: maxSessions }).map((_, i) => (
               <div
                 key={i}
                 className={cn(
-                  "h-3 w-3 rounded-full transition-all duration-500",
+                  "size-[max(4px,calc(var(--ring)*0.017))] rounded-full transition-all duration-500",
                   i < sessionProgress
                     ? "bg-primary"
                     : i === sessionProgress && mode === "work"
@@ -95,14 +107,17 @@ export function TimerDisplay({
           </div>
 
           {/* Mode Label */}
-          <div className="flex items-center space-x-2 mt-4">
-            <span className="text-2xl font-medium tracking-widest text-primary/80 uppercase">
+          <div className="flex items-center space-x-2 mt-[calc(var(--ring)*0.023)]">
+            <span className="text-[length:max(9px,calc(var(--ring)*0.034))] font-medium tracking-widest text-primary/80 uppercase">
               {modeLabels[mode]}
             </span>
           </div>
 
           {/* Neon Glow Effect behind text - Restored */}
-          <div className="absolute inset-0 blur-[120px] opacity-15 pointer-events-none bg-primary rounded-full z-[-1]" />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 blur-[calc(var(--ring)*0.17)] opacity-15 pointer-events-none bg-primary rounded-full z-[-1]"
+          />
         </div>
       </div>
     </div>

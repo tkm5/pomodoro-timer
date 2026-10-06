@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useReducer, useRef } from "react";
 import {
   sendDiscordNotification,
   playNotificationSound,
@@ -8,154 +8,200 @@ import {
   requestNotificationPermission,
   initAudioContext,
 } from "@/lib/notifications";
+import {
+  createInitialState,
+  formatTime,
+  getDurationSeconds,
+  parseSavedState,
+  timerReducer,
+  type TimerSettings,
+  type TimerState,
+} from "@/lib/timer";
 
-export type TimerMode = "work" | "shortBreak" | "longBreak";
+export type { TimerMode, TimerSettings } from "@/lib/timer";
 
-export interface TimerSettings {
-  workDuration: number; // in minutes
-  shortBreakDuration: number;
-  longBreakDuration: number;
-  longBreakInterval: number; // sessions before long break
-  discordNotificationEnabled: boolean; // Discord notification toggle
+const STORAGE_KEY = "pomodoro-state";
+const DEFAULT_TITLE = "Pomodoro Timer";
+// Refresh often enough that the display never lags a second behind.
+const TICK_INTERVAL_MS = 250;
+
+const MODE_TITLES = {
+  work: "Focus",
+  shortBreak: "Short Break",
+  longBreak: "Long Break",
+} as const;
+
+/**
+ * Reads the persisted state, tolerating storage that is blocked (for example
+ * in a third-party iframe with storage access denied).
+ *
+ * Returns:
+ *   The raw stored string, or null.
+ */
+function readStorage(): string | null {
+  try {
+    return window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
 }
 
-const DEFAULT_SETTINGS: TimerSettings = {
-  workDuration: 25,
-  shortBreakDuration: 5,
-  longBreakDuration: 15,
-  longBreakInterval: 4,
-  discordNotificationEnabled: false, // Default: disabled
-};
+/**
+ * Writes the persisted state, ignoring blocked or full storage.
+ *
+ * Args:
+ *   value: Serialized state.
+ */
+function writeStorage(value: string): void {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, value);
+  } catch {
+    // Storage unavailable: the timer keeps working without persistence.
+  }
+}
+
+/**
+ * Plays the sound and sends notifications for a finished session.
+ *
+ * Args:
+ *   state: State at the moment the session ended.
+ */
+function notifyCompletion(state: TimerState): void {
+  playNotificationSound();
+  showBrowserNotification(state.mode, state.sessionsCompleted);
+  if (state.settings.discordNotificationEnabled) {
+    sendDiscordNotification(state.mode, state.sessionsCompleted);
+  }
+}
 
 export function usePomodoro() {
-  const [mode, setMode] = useState<TimerMode>("work");
-  const [timeLeft, setTimeLeft] = useState(DEFAULT_SETTINGS.workDuration * 60);
-  const [isActive, setIsActive] = useState(false);
-  const [sessionsCompleted, setSessionsCompleted] = useState(0);
-  const [settings, setSettings] = useState<TimerSettings>(DEFAULT_SETTINGS);
+  const [state, dispatch] = useReducer(timerReducer, undefined, createInitialState);
+  const { mode, timeLeft, endTime, sessionsCompleted, settings, loaded } = state;
+  const isActive = endTime !== null;
 
-  // Ref to track if we've loaded from localStorage to avoid overwriting with defaults initially
-  const isLoaded = useRef(false);
+  // Latest state for timer callbacks, which outlive individual renders.
+  const stateRef = useRef(state);
+  // endTime of the last run whose completion was handled, to avoid double alerts.
+  const completedEndTimeRef = useRef<number | null>(null);
 
-  // Load state from localStorage on mount and request notification permission
   useEffect(() => {
-    const savedState = localStorage.getItem("pomodoro-state");
-    if (savedState) {
-      try {
-        const parsed = JSON.parse(savedState);
-        setMode(parsed.mode || "work");
-        setTimeLeft(parsed.timeLeft || DEFAULT_SETTINGS.workDuration * 60);
-        setIsActive(false); // Always pause on reload
-        setSessionsCompleted(parsed.sessionsCompleted || 0);
-        setSettings(parsed.settings || DEFAULT_SETTINGS);
-      } catch (e) {
-        console.error("Failed to parse timer state", e);
-      }
-    }
-    isLoaded.current = true;
+    stateRef.current = state;
+  }, [state]);
 
-    // Request notification permission
-    requestNotificationPermission();
+  // Load state from localStorage on mount.
+  useEffect(() => {
+    dispatch({ type: "load", saved: parseSavedState(readStorage()) });
   }, []);
 
-  // Save state to localStorage whenever it changes
+  // Save state to localStorage whenever it changes.
   useEffect(() => {
-    if (!isLoaded.current) return;
-    const stateToSave = {
-      mode,
-      timeLeft,
-      sessionsCompleted,
-      settings,
-    };
-    localStorage.setItem("pomodoro-state", JSON.stringify(stateToSave));
-  }, [mode, timeLeft, sessionsCompleted, settings]);
+    if (!loaded) return;
+    writeStorage(
+      JSON.stringify({ mode, timeLeft, sessionsCompleted, settings })
+    );
+  }, [loaded, mode, timeLeft, sessionsCompleted, settings]);
 
-  const handleTimerComplete = useCallback(() => {
-    setIsActive(false);
+  const completeSession = useCallback((current: TimerState) => {
+    notifyCompletion(current);
+    dispatch({ type: "complete", endTime: current.endTime });
+  }, []);
 
-    // Play sound and show notifications
-    playNotificationSound();
-    showBrowserNotification(mode, sessionsCompleted);
-
-    if (settings.discordNotificationEnabled) {
-      sendDiscordNotification(mode, sessionsCompleted);
+  // Recompute the remaining time from the wall clock; finish when it is up.
+  const syncWithClock = useCallback(() => {
+    const current = stateRef.current;
+    if (current.endTime === null) return;
+    const now = Date.now();
+    if (now >= current.endTime) {
+      if (completedEndTimeRef.current === current.endTime) return;
+      completedEndTimeRef.current = current.endTime;
+      completeSession(current);
+      return;
     }
+    dispatch({ type: "tick", now });
+  }, [completeSession]);
 
-    if (mode === "work") {
-      // Calculate NEXT session count to determine break type, but DO NOT increment state yet
-      const nextSessionsCompleted = sessionsCompleted + 1;
-
-      if (nextSessionsCompleted % settings.longBreakInterval === 0) {
-        setMode("longBreak");
-        setTimeLeft(settings.longBreakDuration * 60);
-      } else {
-        setMode("shortBreak");
-        setTimeLeft(settings.shortBreakDuration * 60);
-      }
-    } else {
-      // Break is over, back to work
-      // NOW we increment the session count as we start the new focus session
-      setSessionsCompleted((prev) => prev + 1);
-      setMode("work");
-      setTimeLeft(settings.workDuration * 60);
-    }
-  }, [mode, sessionsCompleted, settings]);
-
-  // Timer Countdown
+  // Timer countdown driven by timestamps, so throttled timers cannot drift.
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-
-    if (isActive && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
-    } else if (timeLeft === 0 && isActive) {
-      // Timer finished
-      handleTimerComplete();
-    }
-
+    if (endTime === null) return;
+    const interval = setInterval(syncWithClock, TICK_INTERVAL_MS);
+    // A one-shot timeout lands close to the end even when the interval is
+    // heavily throttled in a background tab.
+    const timeout = setTimeout(
+      syncWithClock,
+      Math.max(0, endTime - Date.now()) + 50
+    );
     return () => {
-      if (interval) clearInterval(interval);
+      clearInterval(interval);
+      clearTimeout(timeout);
     };
-  }, [isActive, timeLeft, handleTimerComplete]);
+  }, [endTime, syncWithClock]);
 
-  const toggleTimer = () => {
-    // Initialize AudioContext on user interaction (required for autoplay policy)
-    if (!isActive) {
-      initAudioContext();
+  // Catch up immediately when the tab or iframe becomes visible again.
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") syncWithClock();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibility);
+  }, [syncWithClock]);
+
+  const totalDuration = getDurationSeconds(mode, settings);
+
+  // Show the countdown in the tab title while a session is in progress.
+  useEffect(() => {
+    const inProgress = isActive || timeLeft < totalDuration;
+    if (!inProgress) {
+      document.title = DEFAULT_TITLE;
+      return;
     }
-    setIsActive(!isActive);
-  };
+    const { minutes, seconds } = formatTime(timeLeft);
+    const pausedMark = isActive ? "" : " (paused)";
+    document.title = `${minutes}:${seconds}${pausedMark} · ${MODE_TITLES[mode]}`;
+  }, [isActive, timeLeft, totalDuration, mode]);
+
+  useEffect(() => {
+    return () => {
+      document.title = DEFAULT_TITLE;
+    };
+  }, []);
+
+  // Stable across ticks (reads stateRef), so key listeners are not re-added.
+  const toggleTimer = useCallback(() => {
+    const current = stateRef.current;
+    if (current.endTime !== null) {
+      const now = Date.now();
+      if (now >= current.endTime) {
+        // Time is already up: complete (with notifications) instead of pausing.
+        syncWithClock();
+        return;
+      }
+      dispatch({ type: "pause", now });
+      return;
+    }
+    // Initialize AudioContext on user interaction (required for autoplay policy)
+    initAudioContext();
+    // Ask for notification permission from a user gesture, as browsers require.
+    requestNotificationPermission();
+    dispatch({ type: "start", now: Date.now() });
+  }, [syncWithClock]);
 
   const resetTimer = () => {
-    setIsActive(false);
-    setTimeLeft(getDurationForMode(mode));
+    dispatch({ type: "reset" });
   };
 
   const skipSession = () => {
     // Initialize AudioContext on user interaction (required for autoplay policy)
     initAudioContext();
-    setIsActive(false);
-    handleTimerComplete();
+    completeSession(stateRef.current);
   };
 
   const resetSessionCount = () => {
-    setSessionsCompleted(0);
+    dispatch({ type: "resetSessionCount" });
   };
 
   const updateSettings = (newSettings: Partial<TimerSettings>) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
-  };
-
-  const getDurationForMode = (targetMode: TimerMode): number => {
-    switch (targetMode) {
-      case "work":
-        return settings.workDuration * 60;
-      case "shortBreak":
-        return settings.shortBreakDuration * 60;
-      case "longBreak":
-        return settings.longBreakDuration * 60;
-    }
+    dispatch({ type: "updateSettings", settings: newSettings });
   };
 
   return {
@@ -164,13 +210,11 @@ export function usePomodoro() {
     isActive,
     sessionsCompleted,
     settings,
-    totalDuration: getDurationForMode(mode),
+    totalDuration,
     toggleTimer,
     resetTimer,
     skipSession,
     resetSessionCount,
     updateSettings,
-    setMode,
-    setTimeLeft,
   };
 }

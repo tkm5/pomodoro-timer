@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,10 +13,46 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { TimerSettings } from "@/hooks/use-pomodoro";
+import { SETTING_LIMITS } from "@/lib/timer";
 
-const LABEL_CLASS = "text-right text-muted-foreground col-span-2";
+const LABEL_CLASS =
+  "text-right text-xs text-muted-foreground col-span-2 sm:text-sm";
 const INPUT_CLASS =
-  "col-span-2 bg-input border-transparent focus:border-primary text-right font-mono text-lg";
+  "col-span-2 bg-input border-transparent focus:border-primary text-right font-mono text-base sm:text-lg";
+const ROW_CLASS = "grid grid-cols-4 items-center gap-2 sm:gap-4";
+
+type NumericKey = keyof typeof SETTING_LIMITS;
+
+// Numeric fields are edited as strings so a field can be cleared while typing.
+type FormValues = Record<NumericKey, string> & {
+  discordNotificationEnabled: boolean;
+};
+
+const NUMERIC_FIELDS: { key: NumericKey; id: string; label: string }[] = [
+  { key: "workDuration", id: "workDuration", label: "Work Duration (min)" },
+  { key: "shortBreakDuration", id: "shortBreak", label: "Short Break (min)" },
+  { key: "longBreakDuration", id: "longBreak", label: "Long Break (min)" },
+  { key: "longBreakInterval", id: "interval", label: "Long Break Interval" },
+];
+
+/**
+ * Converts settings to editable form values.
+ *
+ * Args:
+ *   settings: Current settings.
+ *
+ * Returns:
+ *   Form values with numbers rendered as strings.
+ */
+function toFormValues(settings: TimerSettings): FormValues {
+  return {
+    workDuration: String(settings.workDuration),
+    shortBreakDuration: String(settings.shortBreakDuration),
+    longBreakDuration: String(settings.longBreakDuration),
+    longBreakInterval: String(settings.longBreakInterval),
+    discordNotificationEnabled: settings.discordNotificationEnabled,
+  };
+}
 
 interface SettingsModalProps {
   settings: TimerSettings;
@@ -27,110 +63,91 @@ export function SettingsModal({
   settings,
   onUpdateSettings,
 }: SettingsModalProps) {
-  const [localSettings, setLocalSettings] = useState<TimerSettings>(settings);
+  const [localSettings, setLocalSettings] = useState<FormValues>(() =>
+    toFormValues(settings)
+  );
   const [open, setOpen] = useState(false);
 
-  // Sync local state when settings prop changes (e.g. initial load)
-  useEffect(() => {
-    setLocalSettings(settings);
-  }, [settings]);
+  // Start every opening from the saved settings, discarding unsaved edits.
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) setLocalSettings(toFormValues(settings));
+    setOpen(nextOpen);
+  };
 
   const handleSave = () => {
-    onUpdateSettings(localSettings);
+    const numeric: Partial<TimerSettings> = {};
+    for (const { key } of NUMERIC_FIELDS) {
+      const value = parseInt(localSettings[key], 10);
+      // Out-of-range values are clamped by the timer; blanks keep the old value.
+      if (!isNaN(value)) numeric[key] = value;
+    }
+    onUpdateSettings({
+      ...numeric,
+      discordNotificationEnabled: localSettings.discordNotificationEnabled,
+    });
     setOpen(false);
   };
 
-  const handleChange = (key: keyof TimerSettings, value: string) => {
-    const numValue = parseInt(value);
-    if (!isNaN(numValue)) {
-      setLocalSettings((prev) => ({
-        ...prev,
-        [key]: numValue,
-      }));
-    }
-  };
-
-  const handleToggle = (key: keyof TimerSettings, value: boolean) => {
+  const handleChange = (key: NumericKey, value: string) => {
     setLocalSettings((prev) => ({
       ...prev,
       [key]: value,
     }));
   };
 
+  const handleToggle = (value: boolean) => {
+    setLocalSettings((prev) => ({
+      ...prev,
+      discordNotificationEnabled: value,
+    }));
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
-          className="absolute top-6 right-6 text-muted-foreground hover:text-white"
+          title="Settings"
+          className="absolute top-[clamp(4px,2vmin,24px)] right-[clamp(4px,2vmin,24px)] z-20 size-[var(--btn-settings)] text-muted-foreground hover:text-white"
         >
-          <Settings2 className="h-6 w-6" />
+          <Settings2 className="size-[60%]" />
           <span className="sr-only">Settings</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px] bg-card border-none text-card-foreground">
+      <DialogContent className="max-h-[calc(100dvh-1rem)] max-w-[calc(100%-1rem)] gap-3 overflow-y-auto border-none bg-card p-4 text-card-foreground sm:max-w-[425px] sm:gap-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold tracking-tight">
+          <DialogTitle className="text-lg font-bold tracking-tight sm:text-2xl">
             Settings
           </DialogTitle>
         </DialogHeader>
-        <div className="grid gap-6 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="workDuration" className={LABEL_CLASS}>
-              Work Duration (min)
-            </Label>
-            <Input
-              id="workDuration"
-              type="number"
-              value={localSettings.workDuration}
-              onChange={(e) => handleChange("workDuration", e.target.value)}
-              className={INPUT_CLASS}
-            />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="shortBreak" className={LABEL_CLASS}>
-              Short Break (min)
-            </Label>
-            <Input
-              id="shortBreak"
-              type="number"
-              value={localSettings.shortBreakDuration}
-              onChange={(e) =>
-                handleChange("shortBreakDuration", e.target.value)
-              }
-              className={INPUT_CLASS}
-            />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="longBreak" className={LABEL_CLASS}>
-              Long Break (min)
-            </Label>
-            <Input
-              id="longBreak"
-              type="number"
-              value={localSettings.longBreakDuration}
-              onChange={(e) =>
-                handleChange("longBreakDuration", e.target.value)
-              }
-              className={INPUT_CLASS}
-            />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="interval" className={LABEL_CLASS}>
-              Long Break Interval
-            </Label>
-            <Input
-              id="interval"
-              type="number"
-              value={localSettings.longBreakInterval}
-              onChange={(e) =>
-                handleChange("longBreakInterval", e.target.value)
-              }
-              className={INPUT_CLASS}
-            />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
+        <form
+          id="settings-form"
+          className="grid gap-3 py-1 sm:gap-6 sm:py-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSave();
+          }}
+        >
+          {NUMERIC_FIELDS.map(({ key, id, label }) => (
+            <div key={key} className={ROW_CLASS}>
+              <Label htmlFor={id} className={LABEL_CLASS}>
+                {label}
+              </Label>
+              <Input
+                id={id}
+                type="number"
+                inputMode="numeric"
+                min={SETTING_LIMITS[key].min}
+                max={SETTING_LIMITS[key].max}
+                step={1}
+                value={localSettings[key]}
+                onChange={(e) => handleChange(key, e.target.value)}
+                className={INPUT_CLASS}
+              />
+            </div>
+          ))}
+          <div className={ROW_CLASS}>
             <Label htmlFor="discordNotification" className={LABEL_CLASS}>
               Discord Notification
             </Label>
@@ -138,16 +155,15 @@ export function SettingsModal({
               <Switch
                 id="discordNotification"
                 checked={localSettings.discordNotificationEnabled}
-                onCheckedChange={(checked) =>
-                  handleToggle("discordNotificationEnabled", checked)
-                }
+                onCheckedChange={handleToggle}
               />
             </div>
           </div>
-        </div>
+        </form>
         <DialogFooter>
           <Button
-            onClick={handleSave}
+            type="submit"
+            form="settings-form"
             className="w-full bg-primary text-black hover:bg-primary/90 font-bold"
           >
             Save Changes

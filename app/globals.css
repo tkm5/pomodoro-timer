@@ -47,6 +47,8 @@
 }
 
 :root {
+  /* The palette below is dark only; tell the UA so form controls match. */
+  color-scheme: dark;
   --radius: 0.625rem;
   --background: oklch(0 0 0); /* Pure Black */
   --foreground: oklch(0.985 0 0); /* White */
@@ -133,5 +135,137 @@
   }
   .no-spinner {
     -moz-appearance: textfield;
+  }
+}
+
+/*
+ * Fluid layout. Every size derives from the viewport so the timer fits
+ * anything from a ~220x160 iframe to a desktop window without scrolling.
+ * --ring is the largest circle that leaves room for the controls.
+ */
+@layer components {
+  .pomodoro-app {
+    --pad: clamp(6px, 2.5vmin, 32px);
+    --gap: clamp(6px, 3vmin, 32px);
+    --gap-sm: clamp(4px, 1.5vmin, 12px);
+    --btn-main: clamp(44px, 18vmin, 80px);
+    --btn-side: clamp(32px, 12vmin, 48px);
+    --btn-mini: clamp(24px, 6vmin, 32px);
+    --btn-settings: clamp(28px, 9vmin, 40px);
+    --footer-font: clamp(9px, 2.6vmin, 14px);
+    --ring: max(
+      60px,
+      min(
+        700px,
+        100vw - 2 * var(--pad),
+        100dvh - 2 * var(--pad) - var(--btn-main) - var(--btn-mini) - 2 *
+          var(--gap)
+      )
+    );
+  }
+
+  .pomodoro-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--gap);
+  }
+
+  .pomodoro-side {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--gap);
+  }
+
+  .pomodoro-controls {
+    display: flex;
+    align-items: center;
+    gap: clamp(8px, 3vmin, 24px);
+  }
+
+  .pomodoro-ring-track {
+    stroke-width: 4;
+  }
+
+  .pomodoro-ring-progress {
+    stroke-width: 8;
+  }
+
+  /* Thicker strokes (in 700-unit viewBox space) keep small rings visible. */
+  @media (max-width: 480px), (max-height: 540px) {
+    .pomodoro-ring-track {
+      stroke-width: 6;
+    }
+
+    .pomodoro-ring-progress {
+      stroke-width: 12;
+    }
+  }
+
+  /*
+   * Short landscape frames (embedded iframes, phones on their side): put the
+   * controls beside the ring so the ring can use the full height.
+   */
+  @media (min-aspect-ratio: 6/5) and (max-height: 540px) {
+    .pomodoro-app {
+      --side: max(var(--btn-main), 2 * var(--btn-side) + var(--gap-sm));
+      --ring: max(
+        60px,
+        min(
+          700px,
+          100dvh - 2 * var(--pad),
+          100vw - 2 * var(--pad) - var(--gap) - var(--side)
+        )
+      );
+    }
+
+    .pomodoro-layout {
+      flex-direction: row;
+    }
+
+    .pomodoro-side {
+      align-self: stretch;
+      justify-content: center;
+      gap: var(--gap-sm);
+      /* Keep clear of the settings button in the top-right corner. */
+      padding-top: calc(var(--btn-settings) + var(--gap-sm));
+    }
+
+    .pomodoro-controls {
+      display: grid;
+      grid-template-columns: repeat(2, var(--btn-side));
+      grid-template-areas:
+        "play play"
+        "reset skip";
+      justify-items: center;
+      gap: var(--gap-sm);
+    }
+
+    .pomodoro-control-play {
+      grid-area: play;
+    }
+
+    .pomodoro-control-reset {
+      grid-area: reset;
+    }
+
+    .pomodoro-control-skip {
+      grid-area: skip;
+    }
+
+    /* Not enough width for the word; the count stays visible. */
+    .pomodoro-footer-word {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .pomodoro-footer-spacer {
+      display: none;
+    }
   }
 }
